@@ -62,17 +62,14 @@ def calibrateImage (inpath, flatpath):
                             flt = f[0].header
                             calType = flt['IMAGETYP'].upper()
 
-
                             if (calType.startswith('FLAT') and flt['FILTER'] == imgFilter and int(flt['XBINNING']) == binning):
-                            #if (calType.startswith('FLAT') and int(flt['XBINNING']) == binning):
                                
                                 flat_data = float32(f[0].data) / 65535.0
                                 gotFlat = True
                                 logger.info('Flat file found')
                                 break
                             else:
-                                logger.info('looping')
-                            
+                                logger.info('looping')                            
             except Exception as e :
                 logger.error("ERROR " + str(e) +'\n')
                 logger.error( "Can't load Flat for "+ inpath)
@@ -122,7 +119,7 @@ def calibrateImage (inpath, flatpath):
             #normalize the data to match original image mean adu
             #norm_data = cal_data  * medImg / medCal
             norm_data = cal_data  * maxImg / maxCal
-            #print(final_data)
+
             hdul[0].data = np.int16((norm_data * 65535.0) - 32768)
             hdr['CALSTAT'] = 'BDF'
             hdr['BZERO'] = 32768
@@ -138,6 +135,7 @@ def calibrateImage (inpath, flatpath):
 
 
 def gen_seqNbr(img, seqNbr):
+    # replace NINA seq nbr with master sequential number...
     try:
         img0, ext = img.rsplit('.',1)
         imgmain = img0.rsplit (' ',1)
@@ -184,24 +182,6 @@ def add_WCS_Coordinates (ip_dir, wcs_dest, nowcs_dest, flatpath):
                         except:
                             logger.error("RENAME ERROR " + imgname)
                             
-                        '''
-                        #print('B4:  CalibrateImage ')
-                        # perform image calibration...
-                        res = calibrateImage (inpath, flatpath)
-                        logger.info('Calibrate Result= ' +str(res))
-                        
-                        #print('RES= '+str(res))
-                        
-                        if (res == 0):
-                            calImagename = imagename.replace ('MN ', 'MNc ')
-                            newpath = ip_dir + '\\' + calImagename
-                            try:
-                                os.rename (inpath, newpath)
-                                inpath = newpath
-                                logger.info('RENAMED= '+inpath)
-                            except:
-                                logger.error("RENAME ERROR " + newpath)
-                        '''
                     
                     # make sure this is a "LIGHT" file needing plate-solving
                     if (imageType.startswith ('LIGHT')):
@@ -215,7 +195,7 @@ def add_WCS_Coordinates (ip_dir, wcs_dest, nowcs_dest, flatpath):
                             logger.error("ASTAP EXECUTION ERROR " + str(e) +'\n')
                         
                         calinpath = inpath.replace('MN ', 'MNc ')
-                        print('calinpath= '+calinpath)
+                        #print('calinpath= '+calinpath)
                         shutil.copy2(inpath, calinpath)
                     
                         if code[2] == '0)':
@@ -227,7 +207,7 @@ def add_WCS_Coordinates (ip_dir, wcs_dest, nowcs_dest, flatpath):
                             except:
                                 res = 1
                                 logger.error("Calibration Error, File: "+ calinpath)
-                            print("CalERROR = "+str(res))
+                            #print("CalERROR = "+str(res))
                             if (res == 0):
                                 shutil.move (calinpath, wcs_dest)
                             else:
@@ -266,7 +246,8 @@ def add_WCS_Coordinates (ip_dir, wcs_dest, nowcs_dest, flatpath):
         with open (ip_dir+'\\SEQ_NBR\\nina_seqNbr.txt', 'w') as fs:
             fs.write(str(seqNbr))
 
-#==========================================================================================
+#================================================================================================================
+#================================================================================================================
 
 logger = logging.getLogger('NINA_OROCESSING')   #(__name__)
 logging.basicConfig(filename="C:\\PLT-SLV\\WCS_SeqNbr.log",format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %H:%M:%S', level=logging.DEBUG)
@@ -281,18 +262,17 @@ try:
     today = datetime.now()
     foldername = today.strftime("%Y-%m-%d")
 
- #   wcs_dest = "R:\\Eagle\\SkyX\\images\\"+foldername+'\\'
-    wcs_dest = sys.argv[1]+'\\WCS\\'                 # **** For Test Purposes!
+    wcs_dest = "R:\\Eagle\\SkyX\\images\\"+foldername+'\\'
+ #   wcs_dest = sys.argv[1]+'\\WCS\\'                 # **** For Test Purposes!
 
- #   nowcs_dest = "R:\\Eagle\\SkyX\\images\\"+foldername+'\\'
-    nowcs_dest = sys.argv[1]+'\\ERR\\'               # **** For Test Purposes!
+    nowcs_dest = "R:\\Eagle\\SkyX\\images\\"+foldername+'\\'
+ #   nowcs_dest = sys.argv[1]+'\\ERR\\'               # **** For Test Purposes!
     if not os.path.isdir(wcs_dest) :
          pathlib.Path(wcs_dest).mkdir(parents=True, exist_ok=True)
          
     if not os.path.isdir(nowcs_dest) :
          pathlib.Path(nowsc_dest).mkdir(parents=True, exist_ok=True)
     flatpath = sys.argv[1] + '\\' + 'CalFlats'
-    #print('FlatDir= '+flatpath)
     add_WCS_Coordinates (sys.argv[1], wcs_dest, nowcs_dest, flatpath)
     
 except Exception as e:
