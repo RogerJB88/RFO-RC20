@@ -161,7 +161,8 @@ def gen_seqNbr(img, seqNbr):
 # in the file being written to the nowcs_dest folder and no further action is taken on this file.
 # if successful the file is then copied but with a leading "MNc..." to the filename and then
 # sent to the calibrateImage function to be calibrated. If the "MNc...." file has been successfully
-# calibrated it is written to the wcs_dest folder, otherwise it is deleted.
+# calibrated its header is modified to indicate its calibrated status and then it is written to 
+# the wcs_dest folder. If not successful the file is deleted.
 def add_WCS_Coordinates (ip_dir, wcs_dest, nowcs_dest, flatpath):
     try:
         with open (ip_dir+'\\SEQ_NBR\\nina_seqNbr.txt', 'r') as fs:
