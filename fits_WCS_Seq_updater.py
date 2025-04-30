@@ -12,8 +12,8 @@ WCS conversion data. The updated image file is then moved to a subfolder defined
 solves will result in the fits image being moved to a subfolder defined by the nowcs_dest variable.
 
 In addition, NINA generated images have an RFO Sequence Number applied to the filename. At program
-startup the last sequence  used is read from the sequence number file and then is incremented as NINA files are processed. The
-last sequence number is written to the sequence number file once all liles have been processed.
+startup the last sequence number used is read from the sequence number file and then is incremented as NINA files are processed. The
+last sequence number is written to the sequence number file once all files have been processed.
 
 And finally, LIGHT files are calibrated using Flat calibration files located in the CalFlats folder. Successfully
 calibrated files are stored in the wcs_dest folder but identified by "MNc ...." vs noncalibrated as "MN ...."
@@ -38,6 +38,11 @@ from numpy import float32
 import logging
 
 
+# The calibrateImage function is called by the add_WCS_Coordinates() function. "inpath" is the path to the image file to be
+# calibrated and "flatpath" is the folder containing available FLAT calibration files. This folder will be searched for a
+# FLAT file with matching Filter and Binning settings. The calibration formula used is: (LIGHT - DARK) / (FLAT - BIAS).
+# Since the RC20 monocamera sensor has zero amp glow or fixed pattern anomalies, synthetic vales of BIAS and DARK are derived
+# from the ASI2600MM Specifications and to be confirmed by empirical analysis.
 def calibrateImage (inpath, flatpath):
     try:
         hdul = fits.open (inpath, 'update')
@@ -80,7 +85,7 @@ def calibrateImage (inpath, flatpath):
                 hdul.close()
                 return 3
                 
-            # Normalize the integer image data resulting in values 0.0000 to 1.0000
+            # Normalize the integer image data resulting in values 0.000000 to 1.000000
             image_data = float32(hdul[0].data) / 65535.0
             medImg = np.mean(image_data)
             logger.info('IMG MEAN= '+str(medImg))
@@ -103,7 +108,7 @@ def calibrateImage (inpath, flatpath):
             if (exp <= 120): exp = 0         # no factor at 120s or less exposure
             expFactor = 2 + exp * 0.0040
 
-            darkBias = (hdr['OFFSET'] * 10 + expFactor)/65535.0       # 10 is camera adu mult factor
+            darkBias = (hdr['OFFSET'] * 10.0 + expFactor)/65535.0       # 10 is camera adu mult factor
             for x in image_data:
                 x -= darkBias             # subtract  dark from image
             
@@ -134,6 +139,9 @@ def calibrateImage (inpath, flatpath):
         return 4
 
 
+# The gen_seqNbr function rplaces the NINA generated file sequence number with and RFO standard
+# continuously incrementing eight digit sequence number. This overcomes the problem of NINA's
+# numbers being reset to zero at startup. It is called by the add_WCS_coordinates() function.
 def gen_seqNbr(img, seqNbr):
     # replace NINA seq nbr with master sequential number...
     try:
@@ -146,6 +154,14 @@ def gen_seqNbr(img, seqNbr):
         logger.error("ERROR Numbering" + str(e) +'\n')
         return img
         
+# The add_WCS_Coordinates function first calls the gen_seqNbr function to re-number all NINA
+# generated image files. Then with LIGHT files only it plate-solves the image using ASTAP plate
+# solver in order to add WCS coordinates to the image header and if successful, designate it as 
+# having been plate solved and written to the wcs_dest folder. An unsuccessful plate-solve results
+# in the file being written to the nowcs_dest folder and no further action is taken on this file.
+# if successful the file is then copied but with a leading "MNc..." to the filename and then
+# sent to the calibrateImage function to be calibrated. If the "MNc...." file has been successfully
+# calibrated it is written to the wcs_dest folder, otherwise it is deleted.
 def add_WCS_Coordinates (ip_dir, wcs_dest, nowcs_dest, flatpath):
     try:
         with open (ip_dir+'\\SEQ_NBR\\nina_seqNbr.txt', 'r') as fs:
