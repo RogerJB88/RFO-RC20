@@ -1,6 +1,6 @@
 This program is intended to be used alongside the NINA astro imaging application.
 The NINA Advanced Sequencer supports user scripts to invoke external programs but it is
-limited to wWindows bat scripts.
+limited to Windows bat scripts.
 
 "launchWCS.bat" is a single line Windows bat file to run the fits_WCS_updater.py Python script. 
 This re-numbers images in a continuous sequence, plate-solves and updates the header of all LIGHT image 
