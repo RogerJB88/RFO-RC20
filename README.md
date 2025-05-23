@@ -13,7 +13,7 @@ leading "MNc ..." vs the normal "MN ..." to designate it as a calibrated file.
 
 Here is a sample script to kick off the WCS image conversion from a NINA Advanced Sequence.
 At a minimum it should be inserted towards the end of the sequence (i.e., in the Shutdown 
-section) as a single line (with quotes):
+section) as a single line (without quotes):
 
 "C:\PLT-SLV\launchWCS.bat"   "C:\PLT-SLV\TEMP_IMAGES" 
 
