@@ -15,8 +15,10 @@ In addition, NINA generated images have an RFO Sequence Number applied to the fi
 startup the last sequence number used is read from the sequence number file and then is incremented as NINA files are processed. The
 last sequence number is written to the sequence number file once all files have been processed.
 
-And finally, LIGHT files are calibrated using Flat calibration files located in the CalFlats folder. Successfully
-calibrated files are stored in the wcs_dest folder but identified by "MNc ...." vs noncalibrated as "MN ...."
+And finally, LIGHT files are calibrated using master Flat calibration files located in the CalFlats folder as well as  master Dark
+in the CalDark folder. The master Dark is scaled for exposure so that a single master Dark can be used to calibrate Light file
+shat at different exposures. Successfully calibrated files are stored in the wcs_dest folder but identified by "MNc ...." vs 
+noncalibrated as "MN ...."
 
 Python3 must be available on the computer and Astap plate solver with an appropriate star database must be 
 installed in the "Program Files/astap" folder.
@@ -38,7 +40,11 @@ from numpy import float32
 import logging
 
 
-
+'''
+The getMstrDrk function is called by add_WCS_Coordinates function and loads the master dark file and populates several variables 
+and returns these so that this operation is only executed once and the returned variables are used over and over again as 
+individual LIGHT files are calibrated.
+'''
 def getMstrDrk(darkpath):
     with fits.open(darkpath+'\\Dark_Master-c.fits') as fdrk:
         dark_hdr = fdrk[0].header
@@ -54,10 +60,13 @@ def getMstrDrk(darkpath):
 
 
 '''
- The calibrateImage function is called by the add_WCS_Coordinates() function. "ip_dir' is the working directory and "calinpath" is the path to the image file to be calibrated. This folder will be searched for a FLAT file with matching Filter and Binning settings. The calibration formula used is: (LIGHT - DARK) / (FLAT - BIAS). A synthetic value of BIAS is derived from the ASI2600MM Specifications and serves until bias files are collected.
-'def calibrate(ip_dir, calinpath, dark_exp, dark_binning, bias, mstr_dark):
-    try:
-       
+ The calibrateImage function is called by the add_WCS_Coordinates() function. "ip_dir' is the working directory and "calinpath" is 
+ the path to the image file to be calibrated. This folder will be searched for a FLAT file with matching Filter and Binning settings. 
+ The calibration formula used is: (LIGHT - DARK) / (FLAT - BIAS). A synthetic value of BIAS is derived from the ASI2600MM Specifications 
+ and serves until bias files are collected.
+''' 
+def calibrate(ip_dir, calinpath, dark_exp, dark_binning, bias, mstr_dark):
+    try:       
         try:
             fimg = fits.open (calinpath, 'update')
         except:
@@ -142,7 +151,9 @@ def getMstrDrk(darkpath):
 
 
 '''
-The gen_seqNbr function rplaces the NINA generated file sequence number with and RFO standard  continuously incrementing eight digit sequence number. This overcomes the problem of NINA's numbers being reset to zero at startup. It is called by the add_WCS_coordinates() function.
+The gen_seqNbr function rplaces the NINA generated file sequence number with and RFO standard  continuously incrementing 
+eight digit sequence number. This overcomes the problem of NINA's numbers being reset to zero at startup. It is called by 
+the add_WCS_coordinates() function.
 '''
 def gen_seqNbr(img, seqNbr):
     # replace NINA seq nbr with master sequential number...
@@ -155,9 +166,15 @@ def gen_seqNbr(img, seqNbr):
     except  Exception as e:
         logger.error("ERROR Numbering" + str(e) +'\n')
         return img
-'''        
-        
-The add_WCS_Coordinates function first calls the gen_seqNbr function to re-number all NINA generated image files. Then with LIGHT files only it plate-solves the image using ASTAP plate solver in order to add WCS coordinates to the image header and if successful, designate it as having been plate solved and written to the wcs_dest folder. An unsuccessful plate-solve results in the file being written to the nowcs_dest folder and no further action is taken on this file. if successful the file is then copied but with a leading "MNc..." to the filename and then sent to the calibrateImage function to be calibrated. If the "MNc...." file has been successfully calibrated its header is modified to indicate its calibrated status and then it is written to the wcs_dest folder. If not successful the file is deleted.
+	    
+'''              
+The add_WCS_Coordinates function first calls the gen_seqNbr function to re-number all NINA generated image files. Then with 
+LIGHT files only it plate-solves the image using ASTAP plate solver in order to add WCS coordinates to the image header and 
+if successful, designate it as having been plate solved and written to the wcs_dest folder. An unsuccessful plate-solve 
+results in the file being written to the nowcs_dest folder and no further action is taken on this file. if successful the file 
+is then copied but with a leading "MNc..." to the filename and then sent to the calibrateImage function to be calibrated. If 
+the "MNc...." file has been successfully calibrated its header is modified to indicate its calibrated status and then it is 
+written to the wcs_dest folder. If not successful the file is deleted.
 '''
 def add_WCS_Coordinates (ip_dir, wcs_dest, nowcs_dest):
     try:
