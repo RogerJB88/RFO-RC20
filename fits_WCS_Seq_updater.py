@@ -3,7 +3,7 @@
 fits_WCS_updater.py
 
 By: Roger Boulanger
-Date:  05/22/2025   Alpha 5.22
+Date:  05/28/2025   Alpha 5.28
 
         ***** THIS PROGRAM IS EXPERIMENTAL CODE NOT INTENDED FOR PRODUCTION! *****
 
@@ -33,11 +33,13 @@ import sys
 import pathlib
 import shutil
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 from astropy.io import fits
 import numpy as np
 from numpy import float32
 import logging
+
+
 
 
 '''
@@ -45,19 +47,26 @@ The getMstrDrk function is called by add_WCS_Coordinates function and loads the 
 and returns these so that this operation is only executed once and the returned variables are used over and over again as 
 individual LIGHT files are calibrated.
 '''
-def getMstrDrk(darkpath):
-    with fits.open(darkpath+'\\Dark_Master-c.fits') as fdrk:
-        dark_hdr = fdrk[0].header
-        dark_exp = float32(dark_hdr['EXPTIME'])
-        dark_binning = int(dark_hdr['XBINNING'])
-        # scale the data 0.000 to 1.000
-        mstr_dark = (float32(fdrk[0].data))/65535.0
 
-        # Sythetic bias is derived from the camera adu offset
-        bias = float32( dark_hdr['OFFSET'] * 10 + 3.0) / 65535.0
+
+def getMstrDrk(darkpath, biaspath):
+    try:
+        with fits.open(darkpath+'\\Dark_Master-c.fits') as fdrk:
+            dark_hdr = fdrk[0].header
+            dark_exp = float32(dark_hdr['EXPTIME'])
+            dark_binning = int(dark_hdr['XBINNING'])
+            # scale the data 0.000 to 1.000
+            global dark_buf
+            dark_buf = (float32(fdrk[0].data))/65535.0
+
+        with fits.open(biaspath+'\\Bias_Master-c.fits') as fbias:
+            global bias_buf
+            bias_buf = (float32(fbias[0].data))/65535.0
 	
-    return [dark_exp, dark_binning, bias, mstr_dark]
-
+        return [dark_exp, dark_binning]
+    except:
+        logger.error(" Can't open " + darkpath +' or ' + biaspath)
+        return 2
 
 '''
  The calibrateImage function is called by the add_WCS_Coordinates() function. "ip_dir' is the working directory and "calinpath" is 
@@ -65,8 +74,10 @@ def getMstrDrk(darkpath):
  The calibration formula used is: (LIGHT - DARK) / (FLAT - BIAS). A synthetic value of BIAS is derived from the ASI2600MM Specifications 
  and serves until bias files are collected.
 ''' 
-def calibrate(ip_dir, calinpath, dark_exp, dark_binning, bias, mstr_dark):
-    try:       
+def calibrate(ip_dir, calinpath, dark_exp, dark_binning):
+    global bias_buf        
+    global dark_buf
+    try:
         try:
             fimg = fits.open (calinpath, 'update')
         except:
@@ -80,29 +91,28 @@ def calibrate(ip_dir, calinpath, dark_exp, dark_binning, bias, mstr_dark):
      
         imgbuf = (float32(fimg[0].data))/65535.0
         img_exp = float32(hdr['EXPTIME'])
-        dark_buf = mstr_dark 
-        
+        #drk_median = np.median(dark_buf)
+        #logger.info("DRK-MEDIAN="+str(drk_median))
         # If more than 40s exposure difference..
         if (abs(img_exp - dark_exp) > 40):
-            exp_scaleFactor = float32((img_exp - dark_exp) * 0.0013 + 1)
+            exp_scaleFactor = float32((img_exp - dark_exp) * 0.007 + 1)
             logger.info('expScaleFactor = '+str(exp_scaleFactor))
-            hotpix_threshold = float32(1024.0/65535.0)
+            hotpix_threshold = float32(512.0/65535.0)
+
+            dark_buf -= bias_buf
             for x in dark_buf:
-                x -= bias
                 chk = (x < hotpix_threshold)
                 x[chk] *= exp_scaleFactor
-                x += bias
+            dark_buf += bias_buf
                  
-        #img_median = np.median(imgbuf)
-        #logger.info("IMGMEDIAN="+str(img_median))
+        drk_median = np.median(dark_buf)
+        logger.info("DRKSCLD-MEDIAN="+str(drk_median))
         diff_img= np.subtract(imgbuf, dark_buf)
         # Eliminate unrealistic numbers...
         for x in diff_img:
-            #chk = (x < img_median)
-            #x[chk] = img_median            
-            chk = (x < 0)
-            x[chk] = 0
-
+            chk = (x < drk_median)
+            x[chk] = drk_median            
+ 
         try:
             got_flat = False
             flatpath = ip_dir + '\\FLATS'
@@ -119,7 +129,7 @@ def calibrate(ip_dir, calinpath, dark_exp, dark_binning, bias, mstr_dark):
                             logger.info('Flat file found')
                             break
                                             
-                    except Exception as e :
+        except Exception as e :
             logger.error("ERROR " + str(e) +'\n')
             logger.error( "Can't load Flat for "+ calinpath)
             fimg.close()
@@ -130,18 +140,15 @@ def calibrate(ip_dir, calinpath, dark_exp, dark_binning, bias, mstr_dark):
             fimg.close()
             return 4
 
-
-        flat_data -= bias
-
+        flat_data -= bias_buf
         maxFlat = np.max(flat_data)
         flat_data /= maxFlat
         diff_img /= flat_data
-        f[0].data = np.int16(diff_img * 65535 - 32768)
+        fimg[0].data = np.int16(diff_img * 65535 - 32768)
         hdr['CALSTAT'] = 'BDF'
         hdr['BZERO'] = 32768
         hdr['BSCALE'] = 1
         fimg.close()
-        f.close()
         return 0
 
     except Exception as e :
@@ -168,7 +175,7 @@ def gen_seqNbr(img, seqNbr):
         return img
 	    
 '''              
-The add_WCS_Coordinates function first calls the gen_seqNbr function to re-number all NINA generated image files. Then with 
+The process_NINA_images function first calls the gen_seqNbr function to re-number all NINA generated image files. Then with 
 LIGHT files only it plate-solves the image using ASTAP plate solver in order to add WCS coordinates to the image header and 
 if successful, designate it as having been plate solved and written to the wcs_dest folder. An unsuccessful plate-solve 
 results in the file being written to the nowcs_dest folder and no further action is taken on this file. if successful the file 
@@ -176,16 +183,18 @@ is then copied but with a leading "MNc..." to the filename and then sent to the 
 the "MNc...." file has been successfully calibrated its header is modified to indicate its calibrated status and then it is 
 written to the wcs_dest folder. If not successful the file is deleted.
 '''
-def add_WCS_Coordinates (ip_dir, wcs_dest, nowcs_dest):
+def process_NINA_images(ip_dir, wcs_dest, nowcs_dest):
     try:
         with open (ip_dir+'\\SEQ_NBR\\nina_seqNbr.txt', 'r') as fs:
             seqNbr = int (fs.readline() )
     except:
         seqNbr = 0
     try:
-        darkpath = ip_dir+'\\DARKS'
+        darkpath = ip_dir+'\\DARK'
+        biaspath = ip_dir+'\\BIAS'
+        [dark_exp, dark_binning] = getMstrDrk(darkpath, biaspath)
         
-        [dark_exp, dark_binning, bias, mstr_dark] = getMstrDrk(darkpath)
+        
     except:
         logger.error("Cannot get: "+darkpath+'\\xxxx')
         return 5
@@ -235,16 +244,17 @@ def add_WCS_Coordinates (ip_dir, wcs_dest, nowcs_dest):
                             try:
                                 # perform image calibration...
                                 calinpath = inpath.replace('MN ', 'MNc ')
+
                                 shutil.copy2(inpath, calinpath) 
-                                
-                                res = calibrate (ip_dir, calinpath, dark_exp, dark_binning, bias, mstr_dark)
+
+                                res = calibrate (ip_dir, calinpath, dark_exp, dark_binning)
                                 logger.info('Calibrate Result= ' +str(res))
                             except:
                                 res = 1
                                 logger.error("Calibration Error, File: "+ calinpath)
 
                             logger.info("CalSTATUS = "+str(res))
-
+                  
                             if (res == 0):
                                 shutil.move (calinpath, wcs_dest)
                             else:
@@ -291,7 +301,7 @@ logger = logging.getLogger('NINA_OROCESSING')   #(__name__)
 logging.basicConfig(filename="C:\\PLT-SLV\\Plt-Slv_log.txt",format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %H:%M:%S', level=logging.DEBUG)
 
 logger.info("\nSTARTING\n")
-
+print("\nSTARTING\n")
 try:
     if (len(sys.argv) != 2) :
         logger.error("\n**** Add Path for the input files to be processed! ****\n")
@@ -312,7 +322,7 @@ try:
     if not os.path.isdir(nowcs_dest) :
          pathlib.Path(nowsc_dest).mkdir(parents=True, exist_ok=True)
 
-    res = add_WCS_Coordinates (sys.argv[1], wcs_dest, nowcs_dest)
+    res = process_NINA_images (sys.argv[1], wcs_dest, nowcs_dest)
     logger.info ("End Session with res = " + str(res))
 
 except Exception as e:
