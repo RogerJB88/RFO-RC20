@@ -1,9 +1,9 @@
-    
+   
 '''
-fits_WCS_updater.py
+fits_WCS_Seq_updater.py
 
 By: Roger Boulanger
-Date:  05/28/2025   Alpha 5.28
+Date:  06/18/2025   Alpha6.18
 
         ***** THIS PROGRAM IS EXPERIMENTAL CODE NOT INTENDED FOR PRODUCTION! *****
 
@@ -69,7 +69,7 @@ def getMstrDrk(darkpath, biaspath):
         return 2
 
 '''
- The calibrateImage function is called by the add_WCS_Coordinates() function. "ip_dir' is the working directory and "calinpath" is 
+ The calibrateImage function is called by the process_NINA_images function. "ip_dir' is the working directory and "calinpath" is 
  the path to the image file to be calibrated. This folder will be searched for a FLAT file with matching Filter and Binning settings. 
  The calibration formula used is: (LIGHT - DARK) / (FLAT - BIAS). A synthetic value of BIAS is derived from the ASI2600MM Specifications 
  and serves until bias files are collected.
@@ -91,27 +91,27 @@ def calibrate(ip_dir, calinpath, dark_exp, dark_binning):
      
         imgbuf = (float32(fimg[0].data))/65535.0
         img_exp = float32(hdr['EXPTIME'])
-        #drk_median = np.median(dark_buf)
-        #logger.info("DRK-MEDIAN="+str(drk_median))
-        # If more than 40s exposure difference..
-        if (abs(img_exp - dark_exp) > 40):
-            exp_scaleFactor = float32((img_exp - dark_exp) * 0.007 + 1)
+
+        # If more than 20s exposure difference..
+        if (abs(img_exp - dark_exp) > 20):
+            exp_scaleFactor = float32(img_exp / dark_exp)
             logger.info('expScaleFactor = '+str(exp_scaleFactor))
-            hotpix_threshold = float32(512.0/65535.0)
+            hotpix_threshold = float32(2024.0/65535.0)
 
             dark_buf -= bias_buf
             for x in dark_buf:
                 chk = (x < hotpix_threshold)
                 x[chk] *= exp_scaleFactor
-            dark_buf += bias_buf
-                 
-        drk_median = np.median(dark_buf)
-        logger.info("DRKSCLD-MEDIAN="+str(drk_median))
+            dark_buf += bias_buf     
+        
         diff_img= np.subtract(imgbuf, dark_buf)
         # Eliminate unrealistic numbers...
+        diff_median = np.median(diff_img)
+        logger.info("DIFFIMG-MEDIAN="+str(diff_median))
+        y = diff_median * 0.25
         for x in diff_img:
-            chk = (x < drk_median)
-            x[chk] = drk_median            
+            chk = (x <= 0)
+            x[chk] = y            
  
         try:
             got_flat = False
@@ -268,6 +268,10 @@ def process_NINA_images(ip_dir, wcs_dest, nowcs_dest):
                             os.remove (wcsfile)
 
                         else:
+                            # ASTAP may have created this error file
+                            rslt_ini = inpath.replace (".fits", ".ini")
+                            if os.path.isfile(rslt_ini):
+                                os.remove (rslt_ini)
                             logger.error('PLATESOLVE FAILED!!!! for ' + inpath)
                             shutil.move (inpath, nowcs_dest)
                     else:
@@ -293,7 +297,7 @@ def process_NINA_images(ip_dir, wcs_dest, nowcs_dest):
         logger.error ("MAIN BODY ERROR *** " + str(e) +'\n')
         with open (ip_dir+'\\SEQ_NBR\\nina_seqNbr.txt', 'w') as fs:
             fs.write(str(seqNbr))
-        return 1  #sys.exit(1)
+        return 1
 #================================================================================================================
 #================================================================================================================
 
@@ -301,7 +305,7 @@ logger = logging.getLogger('NINA_OROCESSING')   #(__name__)
 logging.basicConfig(filename="C:\\PLT-SLV\\Plt-Slv_log.txt",format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %H:%M:%S', level=logging.DEBUG)
 
 logger.info("\nSTARTING\n")
-print("\nSTARTING\n")
+print("\nPROCESSING IMAGES\n")
 try:
     if (len(sys.argv) != 2) :
         logger.error("\n**** Add Path for the input files to be processed! ****\n")
@@ -311,11 +315,11 @@ try:
     today = datetime.today() - timedelta(hours=12)
     foldername = today.strftime("%Y-%m-%d")
 
-    wcs_dest = "R:\\Eagle\\SkyX\\images\\"+foldername+'\\'
-  #  wcs_dest = sys.argv[1]+'\\WCS\\'                 # **** For Test Purposes!
+    #wcs_dest = "R:\\Eagle\\SkyX\\images\\"+foldername+'\\'
+    wcs_dest = sys.argv[1]+'\\WCS\\'                 # **** For Test Purposes!
 
-    nowcs_dest = "R:\\Eagle\\SkyX\\images\\"+foldername+'\\'
-  #  nowcs_dest = sys.argv[1]+'\\ERR\\'               # **** For Test Purposes!
+    #nowcs_dest = "R:\\Eagle\\SkyX\\images\\"+foldername+'\\'
+    nowcs_dest = sys.argv[1]+'\\ERR\\'               # **** For Test Purposes!
     if not os.path.isdir(wcs_dest) :
          pathlib.Path(wcs_dest).mkdir(parents=True, exist_ok=True)
          
@@ -326,6 +330,5 @@ try:
     logger.info ("End Session with res = " + str(res))
 
 except Exception as e:
-        logger.error("ERROR *** " + str(e) +'\n')
-        sys.exit(1)
-
+    logger.error("ERROR *** " + str(e) +'\n')
+        
