@@ -15,7 +15,7 @@ Here is a sample script to kick off the WCS image conversion from a NINA Advance
 At a minimum it should be inserted towards the end of the sequence (i.e., in the Shutdown 
 section) as a single line (without quotes):
 
-"python C:\PLT-SLV\launchWCS.bat C:\PLT-SLV\TEMP_IMAGES" 
+"C:\PLT-SLV\.\launchWCS.bat C:\PLT-SLV\TEMP_IMAGES" 
 
 The first group needs to point to the PLT-SLV folder (here it's at the root of drive C:\)
 and the second group (the argument) needs to contain the path and folder name of the configured 
