@@ -3,7 +3,7 @@
 fits_WCS_Seq_updater.py
 
 By: Roger Boulanger
-Date:  06/18/2025   Alpha6.18
+Date:  06/21/2025   Alpha6.21
 
         ***** THIS PROGRAM IS EXPERIMENTAL CODE NOT INTENDED FOR PRODUCTION! *****
 
@@ -96,8 +96,7 @@ def calibrate(ip_dir, calinpath, dark_exp, dark_binning):
         if (abs(img_exp - dark_exp) > 20):
             exp_scaleFactor = float32(img_exp / dark_exp)
             logger.info('expScaleFactor = '+str(exp_scaleFactor))
-            hotpix_threshold = float32(2024.0/65535.0)
-
+            hotpix_threshold = float32(128.0/65535.0)
             dark_buf -= bias_buf
             for x in dark_buf:
                 chk = (x < hotpix_threshold)
@@ -231,11 +230,16 @@ def process_NINA_images(ip_dir, wcs_dest, nowcs_dest):
                     # make sure this is a "LIGHT" file needing plate-solving
                     if (imageType.startswith ('LIGHT')):                        
                         try:
-                            # Filenames with embedded spaces must be enclosed in " marks. The "update" option causes 
-                            # the image header to be updated with the WCS information.
-                            res = subprocess.run ("C:\\Program Files\\astap\\astap.exe -f "+'\"'+inpath+'\"'+" -update")
+                            # Filenames with embedded spaces must be enclosed in " marks. The "update" option causes the image header to be updated with the WCS information.
+                            res = subprocess.run ("C:\\Program Files\\astap\\astap.exe -f "+'\"'+inpath+'\"'+"  -m 2.0 -r 3.0 -update")
                             code = str(res).split('=')
-                            logger.info('ASTAP Result= '+ code[2])
+                            logger.info('ASTAP_bin0 Result= '+ code[2])
+                            if (code[2] != '0)'):
+                                # when above attempt fails, force ASTAP to use 1x1 binning (-z 1, works on some files but not the others) and increase search radius.
+                                res = subprocess.run ("C:\\Program Files\\astap\\astap.exe -f "+'\"'+inpath+'\"'+" -z 1 -m 2.0 -r 6.0 -update")
+                                code = str(res).split('=')
+                                logger.info('ASTAP_bin1 Result= '+ code[2])
+
                         except Exception as e:
                             logger.error("ASTAP EXECUTION ERROR " + str(e) +'\n')                  
                     
@@ -244,9 +248,7 @@ def process_NINA_images(ip_dir, wcs_dest, nowcs_dest):
                             try:
                                 # perform image calibration...
                                 calinpath = inpath.replace('MN ', 'MNc ')
-
                                 shutil.copy2(inpath, calinpath) 
-
                                 res = calibrate (ip_dir, calinpath, dark_exp, dark_binning)
                                 logger.info('Calibrate Result= ' +str(res))
                             except:
@@ -304,7 +306,7 @@ def process_NINA_images(ip_dir, wcs_dest, nowcs_dest):
 logger = logging.getLogger('NINA_OROCESSING')   #(__name__)
 logging.basicConfig(filename="C:\\PLT-SLV\\Plt-Slv_log.txt",format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %H:%M:%S', level=logging.DEBUG)
 
-logger.info("\nSTARTING\n")
+logger.info("\nPROCESSING IMAGES")
 print("\nPROCESSING IMAGES\n")
 try:
     if (len(sys.argv) != 2) :
