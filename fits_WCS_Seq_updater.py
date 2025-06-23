@@ -3,7 +3,7 @@
 fits_WCS_Seq_updater.py
 
 By: Roger Boulanger
-Date:  06/21/2025   Alpha6.21
+Date:  06/23/2025   Beta25.6.23
 
         ***** THIS PROGRAM IS EXPERIMENTAL CODE NOT INTENDED FOR PRODUCTION! *****
 
@@ -15,10 +15,7 @@ In addition, NINA generated images have an RFO Sequence Number applied to the fi
 startup the last sequence number used is read from the sequence number file and then is incremented as NINA files are processed. The
 last sequence number is written to the sequence number file once all files have been processed.
 
-And finally, LIGHT files are calibrated using master Flat calibration files located in the CalFlats folder as well as  master Dark
-in the CalDark folder. The master Dark is scaled for exposure so that a single master Dark can be used to calibrate Light file
-shat at different exposures. Successfully calibrated files are stored in the wcs_dest folder but identified by "MNc ...." vs 
-noncalibrated as "MN ...."
+And finally, LIGHT files are calibrated using master Flat calibration files located in the MASTER_FLATS folder, master Bias file in the MASTER_BIAS folder, master Dark file in the MASTER_DARK folder. The master Dark is scaled for exposure so that a single master Dark can be used to calibrate Light files shot at different exposures. Successfully calibrated files are stored in the wcs_dest folder but identified by "MNc ...." vs noncalibrated as "MN ...."
 
 Python3 must be available on the computer and Astap plate solver with an appropriate star database must be 
 installed in the "Program Files/astap" folder.
@@ -114,7 +111,7 @@ def calibrate(ip_dir, calinpath, dark_exp, dark_binning):
  
         try:
             got_flat = False
-            flatpath = ip_dir + '\\FLATS'
+            flatpath = ip_dir + '\\MASTER_FLATS'
             for flat in os.scandir(flatpath):
                #logger.info(flat.name)
                 if flat.name.startswith ('F') and flat.name.endswith('.fits'):
@@ -189,8 +186,8 @@ def process_NINA_images(ip_dir, wcs_dest, nowcs_dest):
     except:
         seqNbr = 0
     try:
-        darkpath = ip_dir+'\\DARK'
-        biaspath = ip_dir+'\\BIAS'
+        darkpath = ip_dir+'\\MASTER_DARK'
+        biaspath = ip_dir+'\\MASTER_BIAS'
         [dark_exp, dark_binning] = getMstrDrk(darkpath, biaspath)
         
         
