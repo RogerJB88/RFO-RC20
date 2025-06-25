@@ -3,7 +3,7 @@
 fits_WCS_Seq_updater.py
 
 By: Roger Boulanger
-Date:  06/23/2025   Beta25.6.25
+Date:  06/23/2025   Beta25.6.25.1
 
         ***** THIS PROGRAM IS EXPERIMENTAL CODE NOT INTENDED FOR PRODUCTION! *****
 
@@ -176,7 +176,7 @@ def process_NINA_images(root_dir, ip_dir, wcs_dest, nowcs_dest):
         for entry in os.scandir (ip_dir):
             imgname = entry.name
             inpath = str(ip_dir) + '\\'+imgname
-            print("IP2=  "+inpath)
+            
             if imgname.startswith ('MN ') and imgname.endswith('.fits'):                
                 logger.info ("INITIAL INPATH: "+inpath)
                 try:
@@ -276,8 +276,9 @@ def process_NINA_images(root_dir, ip_dir, wcs_dest, nowcs_dest):
 #=============================================================================================================
 #=============================================================================================================
 
+root_dir = os.path.dirname(sys.argv[0])
 logger = logging.getLogger('NINA_PROCESSING')   #(__name__)
-logging.basicConfig(filename="C:\\PLT-SLV\\Plt-Slv_log.txt",format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %H:%M:%S', level=logging.DEBUG)
+logging.basicConfig(filename=root_dir+"\\Plt-Slv_log.txt",format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %H:%M:%S', level=logging.DEBUG)
 
 logger.info("\nPROCESSING IMAGES")
 print("\nPROCESSING IMAGES\n")
@@ -286,12 +287,9 @@ try:
         logger.error("\n**** Add Path for the input files to be processed! ****\n")
         print("\n**** Add Path for the input files to be processed! ****\n")
         sys.exit (1)
-    # Day will start at noon and finish tomorrow noon...
+    # Day will start at noon today and finish noon tomorrow...
     today = datetime.today() - timedelta(hours=12)
     foldername = today.strftime("%Y-%m-%d")
-    root_dir = os.path.dirname(sys.argv[0])
-
-
     wcs_dest = "R:\\Eagle\\SkyX\\images\\"+foldername+'\\'
     #wcs_dest = sys.argv[1]+'\\WCS\\'                 # **** For Test Purposes!
 
@@ -302,7 +300,7 @@ try:
          
     if not os.path.isdir(nowcs_dest) :
          pathlib.Path(nowcs_dest).mkdir(parents=True, exist_ok=True)
-    print("IP=  "+sys.argv[1])
+    
     res = process_NINA_images (root_dir, sys.argv[1], wcs_dest, nowcs_dest)
     logger.info ("End Session with res = " + str(res))
 
