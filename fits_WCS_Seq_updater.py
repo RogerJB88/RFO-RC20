@@ -3,22 +3,17 @@
 fits_WCS_Seq_updater.py
 
 By: Roger Boulanger
-Date:  06/23/2025   Beta25.6.23
+Date:  06/23/2025   Beta25.6.25
 
         ***** THIS PROGRAM IS EXPERIMENTAL CODE NOT INTENDED FOR PRODUCTION! *****
 
-This Windows program will attempt to plate solve fits image files and, if successful, update the fits header with the
-WCS conversion data. The updated image file is then moved to a subfolder defined by wcs_dest variable. Unsuccessful plate
-solves will result in the fits image being moved to a subfolder defined by the nowcs_dest variable.
+This Windows program will attempt to plate solve fits image files and, if successful, update the fits header with the WCS conversion data. The updated image file is then moved to a subfolder defined by wcs_dest variable. Unsuccessful plate solves will result in the fits image being moved to a subfolder defined by the nowcs_dest variable.
 
-In addition, NINA generated images have an RFO Sequence Number applied to the filename. At program
-startup the last sequence number used is read from the sequence number file and then is incremented as NINA files are processed. The
-last sequence number is written to the sequence number file once all files have been processed.
+In addition, NINA generated images have an RFO Sequence Number applied to the filename. At programstartup the last sequence number used is read from the sequence number file and then is incremented as NINA files are processed. The last sequence number is written to the sequence number file once all files have been processed.
 
 And finally, LIGHT files are calibrated using master Flat calibration files located in the MASTER_FLATS folder, master Bias file in the MASTER_BIAS folder, master Dark file in the MASTER_DARK folder. The master Dark is scaled for exposure so that a single master Dark can be used to calibrate Light files shot at different exposures. Successfully calibrated files are stored in the wcs_dest folder but identified by "MNc ...." vs noncalibrated as "MN ...."
 
-Python3 must be available on the computer and Astap plate solver with an appropriate star database must be 
-installed in the "Program Files/astap" folder.
+Python3 must be available on the computer and Astap plate solver with an appropriate star database must be installed in the "Program Files/astap" folder.
 
 The program can be launched from the command line or from a script inserted into a NINA Advanced Sequence.
 The path to the folder containing the images to be processed must be provided as an argument.
@@ -37,15 +32,9 @@ from numpy import float32
 import logging
 
 
-
-
 '''
-The getMstrDrk function is called by add_WCS_Coordinates function and loads the master dark file and populates several variables 
-and returns these so that this operation is only executed once and the returned variables are used over and over again as 
-individual LIGHT files are calibrated.
+The getMstrDrk function is called by add_WCS_Coordinates function and loads the master dark file and populates several variables and returns these so that this operation is only executed once and the returned variables are used over and over again as individual LIGHT files are calibrated.
 '''
-
-
 def getMstrDrk(darkpath, biaspath):
     try:
         with fits.open(darkpath+'\\Dark_Master-c.fits') as fdrk:
@@ -66,12 +55,9 @@ def getMstrDrk(darkpath, biaspath):
         return 2
 
 '''
- The calibrateImage function is called by the process_NINA_images function. "ip_dir' is the working directory and "calinpath" is 
- the path to the image file to be calibrated. This folder will be searched for a FLAT file with matching Filter and Binning settings. 
- The calibration formula used is: (LIGHT - DARK) / (FLAT - BIAS). A synthetic value of BIAS is derived from the ASI2600MM Specifications 
- and serves until bias files are collected.
+ The calibrateImage function is called by the process_NINA_images function. "ip_dir' is the working directory and "calinpath" is the path to the image file to be calibrated. This folder will be searched for a FLAT file with matching Filter and Binning settings. The calibration formula used is: (LIGHT - DARK) / (FLAT - BIAS). 
 ''' 
-def calibrate(ip_dir, calinpath, dark_exp, dark_binning):
+def calibrate(root_dir, calinpath, dark_exp, dark_binning):
     global bias_buf        
     global dark_buf
     try:
@@ -111,7 +97,7 @@ def calibrate(ip_dir, calinpath, dark_exp, dark_binning):
  
         try:
             got_flat = False
-            flatpath = ip_dir + '\\MASTER_FLATS'
+            flatpath = root_dir + '\\MASTER_FLATS'
             for flat in os.scandir(flatpath):
                #logger.info(flat.name)
                 if flat.name.startswith ('F') and flat.name.endswith('.fits'):
@@ -122,7 +108,7 @@ def calibrate(ip_dir, calinpath, dark_exp, dark_binning):
                         if (calType.startswith('FLAT') and flt_hdr['FILTER'].startswith(img_filter) and flt_hdr['XBINNING'] == img_binning):
                             flat_data = float32(f[0].data) / 65535.0
                             got_flat = True
-                            logger.info('Flat file found')
+                            #logger.info('Flat file found')
                             break
                                             
         except Exception as e :
@@ -154,9 +140,7 @@ def calibrate(ip_dir, calinpath, dark_exp, dark_binning):
 
 
 '''
-The gen_seqNbr function rplaces the NINA generated file sequence number with and RFO standard  continuously incrementing 
-eight digit sequence number. This overcomes the problem of NINA's numbers being reset to zero at startup. It is called by 
-the add_WCS_coordinates() function.
+The gen_seqNbr function rplaces the NINA generated file sequence number with and RFO standard  continuously incrementing eight digit sequence number. This overcomes the problem of NINA's numbers being reset to zero at startup. It is called by the add_WCS_coordinates() function.
 '''
 def gen_seqNbr(img, seqNbr):
     # replace NINA seq nbr with master sequential number...
@@ -171,26 +155,19 @@ def gen_seqNbr(img, seqNbr):
         return img
 	    
 '''              
-The process_NINA_images function first calls the gen_seqNbr function to re-number all NINA generated image files. Then with 
-LIGHT files only it plate-solves the image using ASTAP plate solver in order to add WCS coordinates to the image header and 
-if successful, designate it as having been plate solved and written to the wcs_dest folder. An unsuccessful plate-solve 
-results in the file being written to the nowcs_dest folder and no further action is taken on this file. if successful the file 
-is then copied but with a leading "MNc..." to the filename and then sent to the calibrateImage function to be calibrated. If 
-the "MNc...." file has been successfully calibrated its header is modified to indicate its calibrated status and then it is 
-written to the wcs_dest folder. If not successful the file is deleted.
+The process_NINA_images function first calls the gen_seqNbr function to re-number all NINA generated image files. Then with LIGHT files only it plate-solves the image using ASTAP plate solver in order to add WCS coordinates to the image header and if successful, designate it as having been plate solved and written to the wcs_dest folder. An unsuccessful plate-solve results in the file being written to the nowcs_dest folder and no further action is taken on this file. if successful the file is then copied but with a leading "MNc..." to the filename and then sent to the calibrateImage function to be calibrated. If the "MNc...." file has been successfully calibrated its header is modified to indicate its calibrated status and then it is written to the wcs_dest folder. If not successful the file is deleted.
 '''
-def process_NINA_images(ip_dir, wcs_dest, nowcs_dest):
+def process_NINA_images(root_dir, ip_dir, wcs_dest, nowcs_dest):
     try:
-        with open (ip_dir+'\\SEQ_NBR\\nina_seqNbr.txt', 'r') as fs:
+        with open (root_dir+'\\SEQ_NBR\\nina_seqNbr.txt', 'r') as fs:
             seqNbr = int (fs.readline() )
     except:
         seqNbr = 0
     try:
-        darkpath = ip_dir+'\\MASTER_DARK'
-        biaspath = ip_dir+'\\MASTER_BIAS'
+        darkpath = root_dir+'\\MASTER_DARK'
+        biaspath = root_dir+'\\MASTER_BIAS'
         [dark_exp, dark_binning] = getMstrDrk(darkpath, biaspath)
-        
-        
+                
     except:
         logger.error("Cannot get: "+darkpath+'\\xxxx')
         return 5
@@ -199,10 +176,9 @@ def process_NINA_images(ip_dir, wcs_dest, nowcs_dest):
         for entry in os.scandir (ip_dir):
             imgname = entry.name
             inpath = str(ip_dir) + '\\'+imgname
-
-            if imgname.startswith ('MN ') and imgname.endswith('.fits'):
-                
-                #logger.info ("INITIAL INPATH: "+inpath)
+            print("IP2=  "+inpath)
+            if imgname.startswith ('MN ') and imgname.endswith('.fits'):                
+                logger.info ("INITIAL INPATH: "+inpath)
                 try:
                     hdul = fits.open (inpath)
                     # Get image file header to determine type of image (ie, LIGHT, DARK, FLAT, etc)
@@ -228,14 +204,14 @@ def process_NINA_images(ip_dir, wcs_dest, nowcs_dest):
                     if (imageType.startswith ('LIGHT')):                        
                         try:
                             # Filenames with embedded spaces must be enclosed in " marks. The "update" option causes the image header to be updated with the WCS information.
-                            res = subprocess.run ("C:\\Program Files\\astap\\astap.exe -f "+'\"'+inpath+'\"'+"  -m 2.0 -r 3.0 -update")
+                            res = subprocess.run ("C:\\Program Files\\astap\\astap.exe -f "+'\"'+inpath+'\"'+"  -m 2.0 -r 2.0 -update")
                             code = str(res).split('=')
                             logger.info('ASTAP_bin0 Result= '+ code[2])
                             if (code[2] != '0)'):
                                 # when above attempt fails, force ASTAP to use 1x1 binning (-z 1, works on some files but not the others) and increase search radius.
-                                res = subprocess.run ("C:\\Program Files\\astap\\astap.exe -f "+'\"'+inpath+'\"'+" -z 1 -m 2.0 -r 6.0 -update")
+                                res = subprocess.run ("C:\\Program Files\\astap\\astap.exe -f "+'\"'+inpath+'\"'+" -z 1 -m 2.0 -r 3.0 -update")
                                 code = str(res).split('=')
-                                logger.info('ASTAP_bin1 Result= '+ code[2])
+                                logger.info('ASTAP_bin1 Result= '+ code[2]+'n')
 
                         except Exception as e:
                             logger.error("ASTAP EXECUTION ERROR " + str(e) +'\n')                  
@@ -246,7 +222,7 @@ def process_NINA_images(ip_dir, wcs_dest, nowcs_dest):
                                 # perform image calibration...
                                 calinpath = inpath.replace('MN ', 'MNc ')
                                 shutil.copy2(inpath, calinpath) 
-                                res = calibrate (ip_dir, calinpath, dark_exp, dark_binning)
+                                res = calibrate (root_dir, calinpath, dark_exp, dark_binning)
                                 logger.info('Calibrate Result= ' +str(res))
                             except:
                                 res = 1
@@ -287,20 +263,20 @@ def process_NINA_images(ip_dir, wcs_dest, nowcs_dest):
                 if os.path.isfile(inpath):
                     os.remove(inpath)
 
-        with open (ip_dir+'\\SEQ_NBR\\nina_seqNbr.txt', 'w') as fs:
+        with open (root_dir+'\\SEQ_NBR\\nina_seqNbr.txt', 'w') as fs:
             fs.write(str(seqNbr))
             logger.info('FINAL SeqNbr = '+str(seqNbr))
         return 0
         
     except Exception as e:
         logger.error ("MAIN BODY ERROR *** " + str(e) +'\n')
-        with open (ip_dir+'\\SEQ_NBR\\nina_seqNbr.txt', 'w') as fs:
+        with open (root_dir+'\\SEQ_NBR\\nina_seqNbr.txt', 'w') as fs:
             fs.write(str(seqNbr))
         return 1
-#================================================================================================================
-#================================================================================================================
+#=============================================================================================================
+#=============================================================================================================
 
-logger = logging.getLogger('NINA_OROCESSING')   #(__name__)
+logger = logging.getLogger('NINA_PROCESSING')   #(__name__)
 logging.basicConfig(filename="C:\\PLT-SLV\\Plt-Slv_log.txt",format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %H:%M:%S', level=logging.DEBUG)
 
 logger.info("\nPROCESSING IMAGES")
@@ -310,22 +286,24 @@ try:
         logger.error("\n**** Add Path for the input files to be processed! ****\n")
         print("\n**** Add Path for the input files to be processed! ****\n")
         sys.exit (1)
-    
+    # Day will start at noon and finish tomorrow noon...
     today = datetime.today() - timedelta(hours=12)
     foldername = today.strftime("%Y-%m-%d")
+    root_dir = os.path.dirname(sys.argv[0])
 
-    #wcs_dest = "R:\\Eagle\\SkyX\\images\\"+foldername+'\\'
-    wcs_dest = sys.argv[1]+'\\WCS\\'                 # **** For Test Purposes!
 
-    #nowcs_dest = "R:\\Eagle\\SkyX\\images\\"+foldername+'\\'
-    nowcs_dest = sys.argv[1]+'\\ERR\\'               # **** For Test Purposes!
+    wcs_dest = "R:\\Eagle\\SkyX\\images\\"+foldername+'\\'
+    #wcs_dest = sys.argv[1]+'\\WCS\\'                 # **** For Test Purposes!
+
+    nowcs_dest = "R:\\Eagle\\SkyX\\images\\"+foldername+'\\'
+    #nowcs_dest = sys.argv[1]+'\\ERR\\'               # **** For Test Purposes!
     if not os.path.isdir(wcs_dest) :
          pathlib.Path(wcs_dest).mkdir(parents=True, exist_ok=True)
          
     if not os.path.isdir(nowcs_dest) :
-         pathlib.Path(nowsc_dest).mkdir(parents=True, exist_ok=True)
-
-    res = process_NINA_images (sys.argv[1], wcs_dest, nowcs_dest)
+         pathlib.Path(nowcs_dest).mkdir(parents=True, exist_ok=True)
+    print("IP=  "+sys.argv[1])
+    res = process_NINA_images (root_dir, sys.argv[1], wcs_dest, nowcs_dest)
     logger.info ("End Session with res = " + str(res))
 
 except Exception as e:
