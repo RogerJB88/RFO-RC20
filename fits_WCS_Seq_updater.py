@@ -3,7 +3,7 @@
 fits_WCS_Seq_updater.py
 
 By: Roger Boulanger
-Date:  06/23/2025   Beta25.6.25.1
+Date:  06/28/2025   Beta25.6.28
 
         ***** THIS PROGRAM IS EXPERIMENTAL CODE NOT INTENDED FOR PRODUCTION! *****
 
@@ -44,7 +44,7 @@ def getMstrDrk(darkpath, biaspath):
             # scale the data 0.000 to 1.000
             global dark_buf
             dark_buf = (float32(fdrk[0].data))/65535.0
-
+		
         with fits.open(biaspath+'\\Bias_Master-c.fits') as fbias:
             global bias_buf
             bias_buf = (float32(fbias[0].data))/65535.0
@@ -70,8 +70,7 @@ def calibrate(root_dir, calinpath, dark_exp, dark_binning):
         hdr = fimg[0].header
         img_binning = int(hdr['XBINNING'])
         img_type = hdr['IMAGETYP'].upper()
-        img_filter = hdr['FILTER']
-     
+        img_filter = hdr['FILTER']     
         imgbuf = (float32(fimg[0].data))/65535.0
         img_exp = float32(hdr['EXPTIME'])
 
@@ -89,7 +88,7 @@ def calibrate(root_dir, calinpath, dark_exp, dark_binning):
         diff_img= np.subtract(imgbuf, dark_buf)
         # Eliminate unrealistic numbers...
         diff_median = np.median(diff_img)
-        logger.info("DIFFIMG-MEDIAN="+str(diff_median))
+        #logger.info("DIFFIMG-MEDIAN="+str(diff_median))
         y = diff_median * 0.25
         for x in diff_img:
             chk = (x <= 0)
@@ -138,7 +137,6 @@ def calibrate(root_dir, calinpath, dark_exp, dark_binning):
         logger.error('ERROR= '+str(e)+'\n') 
         return 1
 
-
 '''
 The gen_seqNbr function rplaces the NINA generated file sequence number with and RFO standard  continuously incrementing eight digit sequence number. This overcomes the problem of NINA's numbers being reset to zero at startup. It is called by the add_WCS_coordinates() function.
 '''
@@ -176,7 +174,6 @@ def process_NINA_images(root_dir, ip_dir, wcs_dest, nowcs_dest):
         for entry in os.scandir (ip_dir):
             imgname = entry.name
             inpath = str(ip_dir) + '\\'+imgname
-            
             if imgname.startswith ('MN ') and imgname.endswith('.fits'):                
                 logger.info ("INITIAL INPATH: "+inpath)
                 try:
@@ -211,7 +208,7 @@ def process_NINA_images(root_dir, ip_dir, wcs_dest, nowcs_dest):
                                 # when above attempt fails, force ASTAP to use 1x1 binning (-z 1, works on some files but not the others) and increase search radius.
                                 res = subprocess.run ("C:\\Program Files\\astap\\astap.exe -f "+'\"'+inpath+'\"'+" -z 1 -m 2.0 -r 3.0 -update")
                                 code = str(res).split('=')
-                                logger.info('ASTAP_bin1 Result= '+ code[2]+'n')
+                                logger.info('ASTAP_bin1 Result= '+ code[2]+'\n')
 
                         except Exception as e:
                             logger.error("ASTAP EXECUTION ERROR " + str(e) +'\n')                  
