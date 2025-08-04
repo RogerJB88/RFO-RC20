@@ -22,6 +22,6 @@ Here is an example of the NINA script to launch the processing functions:
 The first group needs to point to the PLT-SLV folder (here it's at the root of drive C:\) and the second 
 group (the argument) needs to contain the path and folder name of the configured "Image file path" in the 
 NINA Options->Imaging configuration window. This is a temporary holding buffer and this example shows it
-on the local drive but it should be located on a remote harddrive or on a ram disk.
+on the local SSD drive but it should be located on a remote harddrive or on a local ram disk.
 
 # RFO-RC20
